@@ -4,6 +4,7 @@ import pandas as pd
 import networkx as nx
 import community
 import os
+from funciones import *
 #------------------------------------------------------------------------------------------------------
 #                                 Trabajo Computacional 3
 #------------------------------------------------------------------------------------------------------
@@ -21,6 +22,8 @@ genero = Gender[1]   # genero de los delfines en el mismo orden que los nodos
 for d,g in zip(delfines,genero):
     mydolphins.add_node(d, gender=g)
 
+#Output folder:
+outfolder='./resultados_fast_greedy/'
 
 #------------------------------------------------------------------------------------------------------
 #Grafico Original
@@ -30,7 +33,7 @@ fig.patch.set_facecolor('white')
 pos = nx.spring_layout(mydolphins)
 
 #Nodos
-nx.draw_networkx_nodes(mydolphins,pos,nodelist=mydolphins.nodes(),node_color=["blue" if g=="m" else "violet" if g=="f" else "green" for g in nx.get_node_attributes(mydolphins, "gender").values()],with_labels=True,node_size=1000,alpha=0.8)
+nx.draw_networkx_nodes(mydolphins,pos,nodelist=mydolphins.nodes(),node_color=["blue" if g=="m" else "violet" if g=="f" else "green" for g in nx.get_node_attributes(mydolphins, "gender").values()],with_labels=True,node_size=1000,alpha=0.8,linewidths=1.5,edgecolors='black')
 
 #Enlaces
 nx.draw_networkx_edges(mydolphins,pos,width=1.0,alpha=1)
@@ -57,7 +60,7 @@ fig.patch.set_facecolor('white')
 
 #Nodos
 for c,comu in enumerate(comunidades):
-    nx.draw_networkx_nodes(mydolphins,pos,nodelist=comu,node_color=colores[c],node_size=1000,alpha=0.8)
+    nx.draw_networkx_nodes(mydolphins,pos,nodelist=comu,node_color=colores[c],node_size=1000,alpha=0.8,linewidths=1.5,edgecolors='black')
 
 #Enlaces
 nx.draw_networkx_edges(mydolphins,pos,width=1.0,alpha=1)
@@ -66,11 +69,10 @@ nx.draw_networkx_edges(mydolphins,pos,width=1.0,alpha=1)
 nx.draw_networkx_labels(mydolphins,pos,font_size=8)
 plt.title('Comunidades\n Metodo: Fast greedy',fontsize=20)
 plt.axis('off')
-
 plt.show()
 
 #-------------------------------------------------------------------------------
-#2.a) Modularidad y Silouhette:
+#1.b) Modularidad y Silouhette:
 #-------------------------------------------------------------------------------
 #Asignamos a cada nodo del grafo la propiedad comunity que tendrá un color.
 
@@ -109,7 +111,36 @@ S2=S2/(2*m)
 mod=(S1-S2)/(2*m)
 
 
-print('Modularidad Q = {0:.3f}'.format(mod))
+print('Modularidad = {0:.3f}'.format(mod))
+
+#Calculando la modularidad de cada comunidad y luego sumandolas:
+modularidades=[]
+for c,comu in enumerate(comunidades):
+    s1=0
+    s2=0
+    for idelfin in list(comu):
+        for jdelfin in list(comu):
+            #Buscamos los indices en la lista de delfines para luego acceder a la matrix de Ady con esos indices ni y nj:
+            ni=[idx for idx,d in enumerate(delfines) if d==idelfin]
+            nj=[idx for idx,d in enumerate(delfines) if d==jdelfin]
+            s1=s1+A[ni,nj]
+            s2=s2+grado[idelfin]*grado[jdelfin]
+    s2=s2/(2*m)
+    mod=(s1-s2)/(2*m)
+    modularidades.append(float(mod))
+
+
+print('Modularidades por comunidad:')
+print(modularidades)
+print('Modularidad = {0:.3f}'.format(np.sum(modularidades)))
+
+#Output
+output={}
+output['color']=colores
+output['mod']=modularidades
+df=pd.DataFrame(output)
+df.to_csv(outfolder+'modularidades.txt',sep='\t')
+
 
 #-------------------------------------------------------------
 #Silhouette:
@@ -144,9 +175,9 @@ for idelfin in delfines:
         promedio_comuni=np.mean(distancias)
         b_comuni.append(promedio_comuni)
     b.append(min(b_comuni))
-    comuni=['blue','red','orange','green'] #vuelvo a comuni al inicial
+    comuni=['blue','red','orange','green'] #vuelvo a comuni al estado inicial
 
-#Calculo el Silhouette:
+#Calculo del Silhouette:
 print('Silhouette delfin-S[i]=')
 S=[]
 for i,idelfin in enumerate(delfines):
@@ -155,6 +186,11 @@ for i,idelfin in enumerate(delfines):
     #guardo la propiedad silhouette en el grafo:
     mydolphins.node[idelfin]['silhouette']=s
 print (mydolphins.nodes.data('silhouette'))
+
+
+#Output
+df = pd.DataFrame.from_dict(dict(mydolphins.nodes.data('silhouette')), orient="index")
+df.to_csv(outfolder+'silhouette.txt',sep='\t')
 
 #Grafico de Silhouette:
 
@@ -176,7 +212,7 @@ for c in colores:
         contador=contador+1
         delfin=str(delf_S[j][0],'utf-8')
         silhouette_value=delf_S[j][1]
-        plt.bar(contador,silhouette_value,color=mydolphins.nodes[delfin]['comunity'])#grafico una barra
+        plt.bar(contador,silhouette_value,color=mydolphins.nodes[delfin]['comunity'],edgecolor='black')#grafico una barra
         x.append(contador)
         xTicks.append(delfin)
 plt.xticks(x, xTicks)
@@ -184,15 +220,73 @@ plt.xticks(range(len(delfines)),xTicks, rotation=90)
 plt.title('Silhouette',fontsize=20)
 plt.show()
     
- 
-            
-        
-        
+#------------------------------------------------------------------------------
+#1b) Rewirings:
+#------------------------------------------------------------------------------
+#Se podria tomar la red original recablear, y luego para las comunidades encontradas
+#en la red original contar los enlaces que se hayan entre esos nodos.
+#O sea estariamos calculando de forma simulada el valor kikj/2L.
+#Haremos un histograma del numero de enlaces en esa comunidad.
+
+#iteraciones=20000 #descomentar para que corra
+Recableados={} #es un diccionario que tiene como keys ['comunidadi'] y como propiedades['color','lc_real','lc_random'].
+               #lc_random es una lista de tamano 'iteraciones' y que contiene el numero de enlaces dentro de esa comunidadn uno de esos recableados
+lc_random=[[],[],[],[]]
+
+
+#Recableamos y contamos enlaces en cada comunidad
+for it in range(0,iteraciones):
+    D=rewiring(mydolphins) #creamos un nuevo grafo recableado:
+    D_ady = np.array(nx.to_numpy_matrix(D,nodelist=delfines))
+    for c,comu in enumerate(comunidades):
+        enlaces=0
+        for idelfin in list(comu):
+            for jdelfin in list(comu):
+                #Buscamos los indices en la lista de delfines para luego acceder a la matrix de Ady con esos indices ni y nj:
+                ni=[idx for idx,d in enumerate(delfines) if d==idelfin]
+                nj=[idx for idx,d in enumerate(delfines) if d==jdelfin]
+                enlaces=enlaces+D_ady[ni,nj]
+        lc_random[c].append(int(enlaces)/2)
+        Recableados['comunidad'+str(c)]={'color':colores[c],'lc_real':0,'lc_random':list(lc_random[c])}
+
+#Contamos enlaces en cada comunidad de la red original:
+for c,comu in enumerate(comunidades):
+        enlaces=0
+        for idelfin in list(comu):
+            for jdelfin in list(comu):
+                #Buscamos los indices en la lista de delfines para luego acceder a la matrix de Ady con esos indices ni y nj:
+                ni=[idx for idx,d in enumerate(delfines) if d==idelfin]
+                nj=[idx for idx,d in enumerate(delfines) if d==jdelfin]
+                enlaces=enlaces+A[ni,nj]
+        enlaces=int(enlaces)/2
+        Recableados['comunidad'+str(c)]['lc_real']=enlaces
+
+#Graficamos:
+for c,comu in enumerate(comunidades):
+    plt.figure(c)
+    plt.hist(Recableados['comunidad'+str(c)]['lc_random'],color=colores[c],linewidth=1.5,edgecolor='black',label='Red recableada',alpha=0.8,normed=1)
+    plt.axvline(x=Recableados['comunidad'+str(c)]['lc_real'],color=colores[c],linewidth=2,label='Red Real')
+    plt.xlabel('$Numero$ $de$ $enlaces$ $dentro$ $de$ $la$ $comunidad$')
+    plt.ylabel('$Frecuencia$')
+    plt.legend(loc='upper center')
+    plt.title('Modularidad '+' comunidad '+colores[c])
+    plt.savefig(outfolder+'comunidad_'+colores[c]+'_hist.png')
     
-        
-        
-    
-    
+
+#Output
+for c,comu in enumerate(comunidades):
+    lc_real=Recableados['comunidad'+str(c)]['lc_real'] #numero de enlaces dentro de la comunidad en la red real
+    lc_rewiring=np.mean(Recableados['comunidad'+str(c)]['lc_random'])#numero de enlaces promedio dentro de la comunidad para un cierto numero de redes recableadas.
+    modularidad_por_rewiring=(lc_real-lc_rewiring)/m #dividimos por el numero de enlaces totales.
+    output={}
+    output['comunidad']=Recableados['comunidad'+str(c)]['color']
+    output['enlaces_red_real']=lc_real
+    output['enlaces_red_recabelada']=lc_rewiring
+    output['modularidad por rewiring']=modularidad_por_rewiring
+    output['modularidad por cuenta teorica']=modularidades[c]
+    output['enlaces_red_random']=list(Recableados['comunidad'+str(c)]['lc_random'])
+    df = pd.DataFrame.from_dict(output, orient="index")
+    df.to_csv(outfolder+'comunidad_'+colores[c]+'_data.txt',sep='\t')
 
 
 
