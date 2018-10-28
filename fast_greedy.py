@@ -5,6 +5,7 @@ import networkx as nx
 import community
 import os
 from funciones import *
+import scipy.misc 
 #------------------------------------------------------------------------------------------------------
 #                                 Trabajo Computacional 3
 #------------------------------------------------------------------------------------------------------
@@ -135,12 +136,13 @@ print(modularidades)
 print('Modularidad = {0:.3f}'.format(np.sum(modularidades)))
 
 #Output
+'''
 output={}
 output['color']=colores
 output['mod']=modularidades
 df=pd.DataFrame(output)
 df.to_csv(outfolder+'modularidades.txt',sep='\t')
-
+'''
 
 #-------------------------------------------------------------
 #Silhouette:
@@ -189,9 +191,10 @@ print (mydolphins.nodes.data('silhouette'))
 
 
 #Output
+'''
 df = pd.DataFrame.from_dict(dict(mydolphins.nodes.data('silhouette')), orient="index")
 df.to_csv(outfolder+'silhouette.txt',sep='\t')
-
+'''
 #Grafico de Silhouette:
 
 plt.figure(3)
@@ -271,9 +274,10 @@ for c,comu in enumerate(comunidades):
     plt.legend(loc='upper center')
     plt.title('Modularidad '+' comunidad '+colores[c])
     plt.savefig(outfolder+'comunidad_'+colores[c]+'_hist.png')
-    
+   
 
 #Output
+'''   
 for c,comu in enumerate(comunidades):
     lc_real=Recableados['comunidad'+str(c)]['lc_real'] #numero de enlaces dentro de la comunidad en la red real
     lc_rewiring=np.mean(Recableados['comunidad'+str(c)]['lc_random'])#numero de enlaces promedio dentro de la comunidad para un cierto numero de redes recableadas.
@@ -287,7 +291,47 @@ for c,comu in enumerate(comunidades):
     output['enlaces_red_random']=list(Recableados['comunidad'+str(c)]['lc_random'])
     df = pd.DataFrame.from_dict(output, orient="index")
     df.to_csv(outfolder+'comunidad_'+colores[c]+'_data.txt',sep='\t')
+'''
 
+#-----------------------------------------------------------------------------------------------------------------------------
+#1d)Tests de Fisher para ver la relacion entre genero y comunidades encontradas:
+#-----------------------------------------------------------------------------------------------------------------------------
+Generos={} #Es  un diccionario que tiene como keys ['comunidadi'] y como propiedades['color','dc','fc','mc','pFish','pvalor'].
+           #dc: numero de delfines en la comunidad. 
+           #fc: numero de hembras en la comunidad.
+           #mc: numero de machos en la comunidad.
+           #pFish: probabilidad de que hayan hc hembras en la comunidad por azar. pFish=(F fc)(N-F dc-fc)/(N dc)  donde (A a)=A!/a!(A-a)!
+           #D: numero total de delfines
+           #F: numero total de hembras
+           #M: numero total de machos
 
+delfinesF=[delfines[i] for i,idelfin in enumerate(delfines) if mydolphins.node[idelfin]['gender']=='f']
+delfinesM=[delfines[i] for i,idelfin in enumerate(delfines) if mydolphins.node[idelfin]['gender']=='m']
+F=len(delfinesF)
+M=len(delfinesM)
+D=M+F
 
+for c,comu in enumerate(comunidades):
+    dc=0
+    fc=0
+    mc=0
+    for idelfin in list(comu):
+        if mydolphins.node[idelfin]['gender']=='f':
+            dc=dc+1
+            fc=fc+1
+        elif mydolphins.node[idelfin]['gender']=='m':
+            dc=dc+1
+            mc=mc+1
+    pFish=scipy.misc.comb(F,fc)*scipy.misc.comb(N-F,dc-fc)/scipy.misc.comb(N,dc)
+    #Calculo del pvalor:
+    pvalor=0
+    for f in range(fc,F+1):
+        pvalor=pvalor+(scipy.misc.comb(F,f)*scipy.misc.comb(N-F,dc-f)/scipy.misc.comb(N,dc))
+    Generos['comunidad'+str(c)]={'color':colores[c],'dc':dc,'fc':fc,'mc':mc,'pFish':pFish,'pvalor':pvalor}
+    
+#Output
+'''
+df = pd.DataFrame.from_dict(dict(Generos), orient="index")
+df.to_csv(outfolder+'generos.txt',sep='\t')
+'''
 
