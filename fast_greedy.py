@@ -34,7 +34,7 @@ fig.patch.set_facecolor('white')
 pos = nx.spring_layout(mydolphins)
 
 #Nodos
-nx.draw_networkx_nodes(mydolphins,pos,nodelist=mydolphins.nodes(),node_color=["blue" if g=="m" else "violet" if g=="f" else "green" for g in nx.get_node_attributes(mydolphins, "gender").values()],with_labels=True,node_size=1000,alpha=0.8,linewidths=1.5,edgecolors='black')
+nx.draw_networkx_nodes(mydolphins,pos,nodelist=list(delfines),node_color=["blue" if g=="m" else "violet" if g=="f" else "green" for g in list(genero)],with_labels=True,node_size=1000,alpha=0.8,linewidths=1.5,edgecolors='black')
 
 #Enlaces
 nx.draw_networkx_edges(mydolphins,pos,width=1.0,alpha=1)
