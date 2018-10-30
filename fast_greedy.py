@@ -5,7 +5,11 @@ import networkx as nx
 import community
 import os
 from funciones import *
-import scipy.misc 
+import scipy.misc
+from scipy.sparse import csr_matrix
+import scipy.sparse.csgraph as sc
+import copy
+import itertools
 #------------------------------------------------------------------------------------------------------
 #                                 Trabajo Computacional 3
 #------------------------------------------------------------------------------------------------------
@@ -31,7 +35,12 @@ outfolder='./resultados_fast_greedy/'
 #------------------------------------------------------------------------------------------------------
 fig = plt.figure(1)
 fig.patch.set_facecolor('white')
-pos = nx.spring_layout(mydolphins)
+
+#Posiciones de los nodos
+#pos = nx.spring_layout(mydolphins)
+#Asi siempre grafica lo mismo
+pos={'TR77': [-0.00686432,  0.20671214], 'SN4': [-0.30167655,  0.1709983 ], 'MN105': [-0.48412144,  0.02281396], 'MN83': [-0.46944408, -0.04991709], 'Shmuddel': [-0.46766429,  0.36944462], 'Vau': [-0.42298501, -0.28769828], 'SN90': [ 0.59618263, -0.27801198], 'Bumper': [-0.16871511,  0.4586046 ], 'SMN5': [-0.77760313,  0.0395804 ], 'Stripes': [-0.50783091,  0.3303615 ], 'Quasi': [ 1.        , -0.18112197], 'DN16': [ 0.82094776, -0.46242208], 'Whitetip': [-0.66190052,  0.43242722], 'Fork': [-0.73091456,  0.25552539], 'Grin': [-0.36074806,  0.15523022], 'PL': [0.18131467, 0.15653464], 'DN21': [ 0.78411834, -0.31682214], 'Trigger': [-0.48236803, -0.1548581 ], 'SN89': [ 0.33282518, -0.23263502], 'Oscar': [0.09453741, 0.05925168], 'Fish': [-0.21062552,  0.27569265], 'SN63': [-0.42534403,  0.29564573], 'SN100': [ 0.0114244 , -0.05565292], 'SN9': [-0.15391299,  0.07498991], 'TR99': [-0.31469055,  0.08795352], 'CCL': [-0.25197153, -0.09534079], 'DN63': [0.27664047, 0.00265266], 'Topless': [-0.34901076, -0.04751828], 'Upbang': [ 0.54549589, -0.1844215 ], 'TR82': [ 0.91382896, -0.37402259], 'Knit': [0.39761589, 0.01846514], 'Zap': [-0.16312988, -0.13489098], 'Jet': [ 0.74434305, -0.1784962 ], 'Double': [-0.15038254, -0.00120439], 'Cross': [-0.61803759, -0.38844752], 'Hook': [-0.3384137 ,  0.24327099], 'Wave': [ 0.96374634, -0.47444471], 'Mus': [ 0.75550099, -0.00351393], 'TR120': [-0.64532706,  0.57999096], 'Patchback': [-0.49964881,  0.08446744], 'SN96': [-0.07512146,  0.26618326], 'Gallatin': [ 0.70301601, -0.37641514], 'Five': [-0.69876631, -0.31554103], 'Notch': [0.63079813, 0.03576706], 'Beak': [-0.15531096,  0.16553754], 'Kringel': [-0.19166107,  0.13881005], 'Web': [ 0.66849069, -0.31601452], 'Scabs': [-0.45119676,  0.20397036], 'MN60': [-0.24415948, -0.20565683], 'Number1': [ 0.56972977, -0.03490899], 'Thumper': [-0.29542824,  0.38534941], 'TSN83': [-0.48332259,  0.57613593], 'TSN103': [-0.41262492,  0.14370002], 'MN23': [ 0.98120322, -0.0832051 ], 'Feather': [ 0.74874531, -0.4058308 ], 'Jonah': [-0.40488327, -0.02305368], 'TR88': [-0.69803733,  0.54972405], 'Zig': [ 0.79160867, -0.83867743], 'Beescratch': [ 0.41616125, -0.08156713], 'Haecksel': [-0.29259803, -0.07059502], 'Zipfel': [-0.32524628,  0.48412704], 'Ripplefluke': [ 0.76341264, -0.61701228]}
+
 
 #Nodos
 nx.draw_networkx_nodes(mydolphins,pos,nodelist=list(delfines),node_color=["blue" if g=="m" else "violet" if g=="f" else "green" for g in list(genero)],with_labels=True,node_size=1000,alpha=0.8,linewidths=1.5,edgecolors='black')
@@ -230,7 +239,7 @@ plt.show()
 #en la red original contar los enlaces que se hayan entre esos nodos.
 #O sea estariamos calculando de forma simulada el valor kikj/2L.
 #Haremos un histograma del numero de enlaces en esa comunidad.
-
+'''
 #iteraciones=20000 #descomentar para que corra
 Recableados={} #es un diccionario que tiene como keys ['comunidadi'] y como propiedades['color','lc_real','lc_random'].
                #lc_random es una lista de tamano 'iteraciones' y que contiene el numero de enlaces dentro de esa comunidadn uno de esos recableados
@@ -274,7 +283,7 @@ for c,comu in enumerate(comunidades):
     plt.legend(loc='upper center')
     plt.title('Modularidad '+' comunidad '+colores[c])
     plt.savefig(outfolder+'comunidad_'+colores[c]+'_hist.png')
-   
+'''   
 
 #Output
 '''   
@@ -331,7 +340,181 @@ for c,comu in enumerate(comunidades):
     
 #Output
 '''
-df = pd.DataFrame.from_dict(dict(Generos), orient="index")
+df = pd.DataFrame.from_dict(dict(Generos), orient="index"
 df.to_csv(outfolder+'generos.txt',sep='\t')
 '''
+
+#-----------------------------------------------------------------------------------------------------------------------------
+#2)k-Clique Percolation:
+#-----------------------------------------------------------------------------------------------------------------------------
+#-----------------------------------------------------------------------------------------------------------------------------
+#Parte A) Calculos previos:
+#-----------------------------------------------------------------------------------------------------------------------------
+print('Clique Percolation...')
+cliques=list(nx.enumerate_all_cliques(mydolphins))
+k=3 #Tipo de k-cliques que queremos percolar.
+cliques_k=[] #nos quedamos con los k_cliques.
+for c,clique in enumerate(cliques):
+    if len(clique)==k:
+        cliques_k.append(clique)
+
+#CLiques_k es la matriz de Overlap de k-cliques:
+Cliques_k=np.zeros((len(cliques_k),len(cliques_k)))
+
+for i,iclique in enumerate(cliques_k):
+    for j,jclique in enumerate(cliques_k):
+        if len(set(iclique).intersection(set(jclique)))==k-1:#dos 3-cliques se overlapean si son adyacentes o sea si comparten un link.
+            Cliques_k[i][j]=1
+            Cliques_k[j][i]=1
+
+#Usamos el algoritmo de reverse_cuthill_mckee para generar una matriz de bloques:(creo que debe ser similar a hacer formad de Jordan este algoritmo)
+#(No creo que sea del todo necesario pero creo que reduce el tiempo de computo para lo que viene despues)
+            
+A=Cliques_k
+
+A=np.array(A)
+B=csr_matrix(A) #Cliques_tres en forma sparse para poder pasarselo al metodo se necesita la matriz en esta forma
+C=np.zeros((np.shape(A)[0],np.shape(A)[0]))
+orden=sc.reverse_cuthill_mckee(B,symmetric_mode=True) #ordena los vectores columna en la matriz A de forma de obtener una matriz C de bloques.
+orden=list(orden)
+for i,o in enumerate(orden):
+    for j,p in enumerate(orden):
+        C[i,j]=A[o][p]
+
+#cliques hay que ordenarlo segun el vector orden.
+cliques_k_ordenados=[]
+for c,clique in enumerate(cliques_k):
+    nuevo=copy.deepcopy(cliques_k[orden[c]])
+    cliques_k_ordenados.append(nuevo)
+
+#-----------------------------------------------------------------------------------------------------------------------------
+#Parte B) Percolacion de cliques:
+#-----------------------------------------------------------------------------------------------------------------------------
+#Hasta aca tenemos cliques_tres_ordenados.
+#Ahora tenemos que encontrar las comunidades:
+#Hago una copia de cliques que tengo:
+
+cliques=copy.deepcopy(cliques_k_ordenados) #lo copiamos ya que vamos a ir eliminando cliques de la lista cliques pero cliques_tres_ordenados la conservamos intacta
+
+#Estrategia: vamos buscando cliques en la lista cliques y cuando son adyaentes los agarro y los agrego a la lista comunidad_cliques
+Comunidades=[]
+comunidad_cliques=[copy.deepcopy(cliques[0])] #acá es donde vamos a ir poniendo los cliques que vamos encontrando que son adyacentes
+                                              #el valor inicial de la comunidad_cliques son los delfines del primer clique de la lista cliques
+
+while len(cliques)>1: #terminamos cuando se me acabaron los cliques en a lista cliques
+    cliques_to_remove=[] #cuando encuentro que hay una interseccion entre el jclique con algno de la comunidad lo tengo que eliminar de la lista cliques
+    cliques_to_remove.append(0)#asi elimino tambien el primer elemento
+    print('cliques actualizados:')
+    print(cliques)
+
+    tamanocliquesold=len(cliques) 
+    tamanocliquesnew=len(cliques)+1
+    
+    #Lo siguiente es MUCHO MUY IMPORTANTE!:
+    #una vez que termino te recorrer cliques y agregarlos a comunidad_cliques hay que aseguarse que no queden cliques en la lista clique que puedan corresponder
+    #a la comunidad que estoy armando en comunidad_cliques.
+    #esto puede pasar porque el link compartido se pudo formar despues y nunca lo vi,mos entonces...hay que iterar hasta que el largo del vector comunidad_cliques ya no cambie.
+
+    while tamanocliquesnew-tamanocliquesold > 0: #Hay que iterar hasta que este vector ya no cambie mas su largo!!: 
+        tamanocliquesold=len(comunidad_cliques)  
+        for j in range(0,len(cliques)):
+           for cc, cclique in enumerate(comunidad_cliques):
+                if len(set(cliques[j]).intersection(set(cclique)))==k-1:
+                    comunidad_cliques.append(cliques[j])#guardo el clique en vez de los nodos y siempre comparo con cliques NO con nodos
+                    cliques_to_remove.append(j)
+                    #eliminamos elementos repetidos tanto de remove como de comunidad_cliques
+                    comunidad_cliques.sort()
+                    comunidad_cliques=list(comunidad_cliques for comunidad_cliques,_ in itertools.groupby(comunidad_cliques))#elimino elementos repetidos
+                    #print('comunidad')
+                    #print(comunidad_cliques)
+                    cliques_to_remove=list(np.unique(cliques_to_remove))
+                    #print(cliques_to_remove)
+        tamanocliquesnew=len(comunidad_cliques)
+                   
+    newcliques= [z for i, z in enumerate(cliques) if i not in cliques_to_remove] #actualizamos cliques borrando los que ya encontramos que hubo interseccion
+    cliques=copy.deepcopy(newcliques)
+ 
+    print('comunidad final')
+    print(comunidad_cliques) 
+               
+    Comunidades.append(comunidad_cliques)
+    if len(cliques)>0:
+        comunidad_cliques=[copy.deepcopy(cliques[0])]
+ 
+print('Listo Clique Percolation')
+
+#-----------------------------------------------------------------------------------------------------------------------------
+#Parte C) post-Calculos :
+#-----------------------------------------------------------------------------------------------------------------------------
+
+numero_comunidades=len(Comunidades)
+print('Numero de comunidades encontradas: {}'.format(numero_comunidades))
+
+#Teminamos de armar las comunidades a partir de los cliques que estan en cada component de Comunidades[i]:
+comunidades_perc=[] #lista que contiene en cada posicion una comunidad que es la lista de delfines que pertenecen a la misma
+delfines_alcanzados=[]
+
+for c,com in enumerate(Comunidades):
+    delfines=[]
+    for cl, clique in enumerate(com):
+        for grado in range(0,k):
+            delfines.append(clique[grado])
+            delfines_alcanzados.append(clique[grado])
+    comunidades_perc.append(list(np.unique(delfines)))
+    
+delfines_alcanzados=list(np.unique(delfines_alcanzados))
+
+for c,com in enumerate(Comunidades):
+    print('Comunidad {}: numerodecliques: {} numerodedelfines: {}'.format(c,len(com),len(comunidades_perc[c])))
+
+#Nodos overlapping:
+overlap_comunidades=[]
+for c,icom in enumerate(comunidades_perc):
+    overlap_row=[]
+    for d,jcom in enumerate(comunidades_perc):
+        if c!=d:
+            overlap_row.append(list(set(icom).intersection(set(jcom))))
+        else:
+            overlap_row.append([])
+    overlap_comunidades.append(overlap_row)
+
+#Nodos faltantes: son nodos a los que el metodo no pudo llegar los vamos a graficar en tamaño mas chico:
+#comparamos con la lista de delfines_alcanzados con la lista de delfines
+delfines_originales=mydolphins.nodes()
+delfines_faltantes=set(delfines_originales).difference(set(delfines_alcanzados))
+
+#----------------------------------------    
+#Grafico:
+#----------------------------------------
+
+colores=['blue','red','orange','green']
+
+fig = plt.figure(4)
+fig.patch.set_facecolor('white')
+
+#Nodos alcanzados por clique percolation
+for c,comu in enumerate(comunidades_perc):
+    nx.draw_networkx_nodes(mydolphins,pos,nodelist=comu,node_color=colores[c],node_size=1000,alpha=0.8,linewidths=1.5,edgecolors='black')
+
+#Nodos con overlapping entre comunidades:
+for i in range(0,len(overlap_comunidades)):
+   for j in range(i,len(overlap_comunidades)): 
+    nx.draw_networkx_nodes(mydolphins,pos,nodelist=overlap_comunidades[i][j],node_color='deepskyblue',node_shape='o',node_size=1000,alpha=1,linewidths=1.5,edgecolors='black')   
+
+#Nodos faltantes:
+nx.draw_networkx_nodes(mydolphins,pos,nodelist=delfines_faltantes,node_color='steelblue',node_size=200,alpha=0.8,linewidths=1.5,edgecolors='black')
+
+#Enlaces
+nx.draw_networkx_edges(mydolphins,pos,width=1.0,alpha=1)
+
+#Etiquetas
+nx.draw_networkx_labels(mydolphins,pos,font_size=8)
+plt.title('Comunidades\n Metodo: '+str(k)+'-Clique percolation',fontsize=20)
+plt.axis('off')
+plt.show()
+
+
+            
+            
+        
 
