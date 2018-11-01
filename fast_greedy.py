@@ -309,8 +309,8 @@ Generos={} #Es  un diccionario que tiene como keys ['comunidadi'] y como propied
            #dc: numero de delfines en la comunidad. 
            #fc: numero de hembras en la comunidad.
            #mc: numero de machos en la comunidad.
-           #pFish: probabilidad de que hayan hc hembras en la comunidad por azar. pFish=(F fc)(N-F dc-fc)/(N dc)  donde (A a)=A!/a!(A-a)!
-           #D: numero total de delfines
+           #pFish: probabilidad de que hayan hc hembras en la comunidad por azar. pFish=(F fc)(D-F dc-fc)/(D dc)  donde (A a)=A!/a!(A-a)!
+           #D: numero total de delfines con genero
            #F: numero total de hembras
            #M: numero total de machos
 
@@ -331,16 +331,22 @@ for c,comu in enumerate(comunidades):
         elif mydolphins.node[idelfin]['gender']=='m':
             dc=dc+1
             mc=mc+1
-    pFish=scipy.misc.comb(F,fc)*scipy.misc.comb(N-F,dc-fc)/scipy.misc.comb(N,dc)
+    pFish=scipy.misc.comb(F,fc)*scipy.misc.comb(D-F,dc-fc)/scipy.misc.comb(D,dc)
     #Calculo del pvalor:
     pvalor=0
     for f in range(fc,F+1):
-        pvalor=pvalor+(scipy.misc.comb(F,f)*scipy.misc.comb(N-F,dc-f)/scipy.misc.comb(N,dc))
+        pvalor=pvalor+(scipy.misc.comb(F,f)*scipy.misc.comb(D-F,dc-f)/scipy.misc.comb(D,dc))
     Generos['comunidad'+str(c)]={'color':colores[c],'dc':dc,'fc':fc,'mc':mc,'pFish':pFish,'pvalor':pvalor}
+
+#Para chequear que este bien la cuenta se puede usar:
+#import scipy.stats as stats    
+#scipy.stats.fisher_exact(table, alternative='less')
+#donde la tabla de contingencias es: Comunidad/Nocomunidad     Machos/Hembras
+#[[mc,fc],[M-mc,F-fc]]
     
 #Output
 '''
-df = pd.DataFrame.from_dict(dict(Generos), orient="index"
+df = pd.DataFrame.from_dict(dict(Generos), orient="index")
 df.to_csv(outfolder+'generos.txt',sep='\t')
 '''
 
@@ -352,7 +358,7 @@ df.to_csv(outfolder+'generos.txt',sep='\t')
 #-----------------------------------------------------------------------------------------------------------------------------
 print('Clique Percolation...')
 cliques=list(nx.enumerate_all_cliques(mydolphins))
-k=3 #Tipo de k-cliques que queremos percolar.
+k=4 #Tipo de k-cliques que queremos percolar.
 cliques_k=[] #nos quedamos con los k_cliques.
 for c,clique in enumerate(cliques):
     if len(clique)==k:
