@@ -350,6 +350,7 @@ df = pd.DataFrame.from_dict(dict(Generos), orient="index")
 df.to_csv(outfolder+'generos.txt',sep='\t')
 '''
 
+'''
 #-----------------------------------------------------------------------------------------------------------------------------
 #2)k-Clique Percolation:
 #-----------------------------------------------------------------------------------------------------------------------------
@@ -518,9 +519,196 @@ nx.draw_networkx_labels(mydolphins,pos,font_size=8)
 plt.title('Comunidades\n Metodo: '+str(k)+'-Clique percolation',fontsize=20)
 plt.axis('off')
 plt.show()
+'''
+#-----------------------------------------------------------------------------------------------------------------------------
+#1d)Extras Analisis de homofilia:
+#-----------------------------------------------------------------------------------------------------------------------------
+#Vamos a hacerlo de dos maneras al igual que lo que hicimos en el tp1:
+#a) Utilizando primero una reasignacion de los generos dentro de cada comunidad
+#y comparando con la cantidad de enlaces entre distintos generos(numero de enlaces fm)
+#de la red real.
+print('Calculando Homofilia en comunidades')
+
+Enlaces_fm_comunidades= [] # Lista donde vamos a almacenar la cantidad de enlaces entre géneros distintos
+Enlaces_fm_comunidad=[]
+
+Generos_comunidades=[]
+Generos_comunidad=[]
+
+mean_enlacesfm_comunidades=[]
+desv_enlacesfm_comunidades=[]
+
+histogramas_comunidades=[]
+pvalue_comunidades=[]
+
+for c,com in enumerate(comunidades):
+    Generos_comunidad=[]
+    for d,delfin in enumerate(com):
+        Generos_comunidad.append(mydolphins.nodes[delfin]['gender'])
+    Generos_comunidades.append(Generos_comunidad)
+
+Comunity_graphs=[]
 
 
-            
+for i,icom in enumerate(comunidades):
+    Comunity_graph=copy.deepcopy(mydolphins)
+    for j,jcom in enumerate(comunidades):
+        if j!=i:
+            Comunity_graph.remove_nodes_from(jcom)
+    Comunity_graphs.append(Comunity_graph)
+
+
+# Hacemos N asignaciones aleatorias de género:
+num_asignaciones = 10000
+
+for cg, comgraph in enumerate(Comunity_graphs):
+    delfines=comunidades[cg]
+    Enlaces_fm_comunidad= []
+    for it in range(0,num_asignaciones):
+        if it==0:
+            genero_shuffle = Generos_comunidades[cg] # Conservamos la red real en la primera iteración
+        else:
+            genero_shuffle = Generos_comunidades[cg] 
+            np.random.shuffle(genero_shuffle) # Reordenamos aleat los generos para el resto de las iteraciones
+
+        #Reasignamos a cada nodo un valor de genero del vector de genero_shuffle:
+        for d,g in zip(delfines,genero_shuffle):
+            Comunity_graphs[cg].add_node(d, gender=g)
+
+        #Contamos la fraccion de enlaces que conecta nodos con diferente genero:
+        enlaces = list(Comunity_graphs[cg].edges.data())
+        enlaces_fm = 0 # Ponemos en cero el contador de enlaces cruzados
+        # Recorremos los enlaces y nos fijamos cual de ellos es del tipo f-m:
+        for i in range(0,len(enlaces)):
+            genero1 = Comunity_graphs[cg].nodes[enlaces[i][0]]['gender']
+            genero2 = Comunity_graphs[cg].nodes[enlaces[i][1]]['gender']
+            if (genero1 != genero2) & (genero1 is not float) & (genero2 is not float): 
+                enlaces_fm += 1 # Incrementamos el contador si los generos son diferentes
+        Enlaces_fm_comunidad.append(enlaces_fm) # Guardamos la cantidad de enlaces f-m en cada iteración
+    Enlaces_fm_comunidades.append(Enlaces_fm_comunidad)
+
+    # Ahora tenemos una lista Enlaces_fm con la cantidad de enlaces cruzados para N iteraciones
+    # Recordamos que la primera componente corresponde a la red real
+
+    # Valor medio y desviacion standar
+    mean_enlacesfm = np.mean(Enlaces_fm_comunidad)
+    mean_enlacesfm_comunidades.append(mean_enlacesfm)
+    desv_enlacesfm = np.std(Enlaces_fm_comunidad)
+    desv_enlacesfm_comunidades.append(desv_enlacesfm)
+    
+    print('Comunidad:{}'.format(cg))
+    print ('Distribucion de enlaces fm:')
+    print ('Valor medio(H null): {0:.2f}'.format(mean_enlacesfm))
+    print ('Desviacion Standar: {0:.2f}'.format(desv_enlacesfm))
+    print ('Valor Red Real: {0:.2f}'.format(Enlaces_fm_comunidad[0]))
+
+
+    # Histograma y p-valor:
+    histograma = np.unique(Enlaces_fm_comunidad,return_counts=True)
+    histogramas_comunidades.append(histograma)
+    k_enlacesfm = histograma[0] # El vector cantidad de enlaces fm, ordenado
+    probabilidad = histograma[1]/float(num_asignaciones) # Cantidad de veces que aparece cada valor de enlaces, normalizado
+
+    # p-valor: la probabilidad que queda acumulada a la izq del numero de enlaces_fm de la red real
+    # Buscamos el k_enlacesfm mas cercano al de la red real
+    closestto = Enlaces_fm_comunidad[0]
+    theclosest = min(histograma[0], key=lambda x:abs(x-closestto)) # devuelve el k_enlacesfm más cercano al valor real
+    theclosest_index = int(np.where(histograma[0] == theclosest)[0]) # devuelve el indice correspondiente al valor anterior
+
+    # Sumamos las probabilidades desde el mas cercano hasta el ultimo hacia la derecha
+    pvalue=1-np.sum(probabilidad[theclosest_index :])
+    pvalue_comunidades.append(pvalue)
+    print ('p valor: {0:.4f}'.format(pvalue))
+
+    plt.figure(cg)
+    #markerline, stemlines, baseline=plt.stem(k_enlacesfm,probabilidad,colores[cg],markerfmt='o',basefmt='k', label='Hnull')
+    #plt.setp(stemlines, 'color', colores[cg])
+    #plt.setp(stemlines, 'linestyle', '-')
+    #plt.setp(stemlines,'linewidth',12)
+    #plt.setp(markerline, 'color', colores[cg])
+    bins=np.arange(min(Enlaces_fm_comunidad)-1.5,max(Enlaces_fm_comunidad)+1.5,1)
+    plt.hist(Enlaces_fm_comunidad,bins=bins,color=colores[cg],linewidth=1.5,edgecolor='black',label='Red recableada',alpha=0.8,normed=1,rwidth=0.5)
+    plt.axvline(Enlaces_fm_comunidad[0], c=colores[cg],label='Red real') # Linea vertical en el valor de la red real
+    plt.xlabel('Numero de enlaces fm')
+    plt.ylabel('Probabilidad')
+    plt.title('Analisis de homofilia \n Comunidad: {}'.format(colores[cg]))
+    plt.legend()
+    #plt.savefig(outfolder+'comunidad_'+colores[cg]+'_homofilia.png')
+    plt.show()
+
+        
+#b)Calculando la asortatividad(modularidad) segun la variable categorica genero dentro de cada
+#comunidad.
+#Delfines sin genero
+delfines=[d for i,d in enumerate(Gender[0]) if type(Gender[1][i]) is not float]
+genero=[g for i,g in enumerate(Gender[1]) if type(Gender[1][i]) is not float]
+delfines_remove= [d for i,d in enumerate(Gender[0]) if type(Gender[1][i]) is float]    
+
+# A cada uno de los nodos se le agrega el genero y ademas eliminamos los delfines sin genero:
+for d,g in zip(delfines,genero):    
+    mydolphins.add_node(d, gender=g)
+
+for d in delfines_remove:
+    mydolphins.remove_node(d)
+
+#Grafos de cada comunidad
+Comunity_graphs_congeneros=[]
+for i,icom in enumerate(comunidades):
+    Comunity_graph=copy.deepcopy(mydolphins)
+    for j,jcom in enumerate(comunidades):
+        if j!=i:
+            Comunity_graph.remove_nodes_from(jcom)
+    Comunity_graphs_congeneros.append(Comunity_graph)
+
+
+modularidad_genero_comunidades=[]
+
+for c,com in enumerate(comunidades):
+    delfines_comunidad=np.sort(list(set(com).intersection(set(delfines)))) #solo os que tienen genero
+    #Matriz de Adyacencias Aij:
+    A = np.array(nx.to_numpy_matrix(mydolphins,nodelist=delfines_comunidad))
+    N=len(delfines_comunidad) #numero de nodos en la comunidad
+    m=Comunity_graphs_congeneros[c].number_of_edges() #numero de enlaces en la comunidad
+    grado = dict(Comunity_graphs_congeneros[c].degree(nbunch=delfines_comunidad))
+
+    #Matriz de variable categorica genero: Cij=delta(ci,cj)
+    C=np.zeros(np.shape(A))
+    for ni, idelfin in enumerate(delfines_comunidad):
+        for nj, jdelfin in enumerate(delfines_comunidad):
+            if mydolphins.nodes[idelfin]['gender']==mydolphins.nodes[jdelfin]['gender']:
+                if ni != nj: #la diagonal debe permanecer nula
+                    C[ni,nj]=1
+
+    #Calculo de la modularidad
+    #Q/Qmax=(S1-S2)/(2m-S2)
+
+    #S1=Suma en nodos (Aij*Cij)
+    #S2=Suma en nodos(kikj*Cij/2m)
+    S1=0
+    S2=0
+    for ni, idelfin in enumerate(delfines_comunidad):
+        for nj, jdelfin in enumerate(delfines_comunidad):  
+            S1=S1+A[ni,nj]*C[ni,nj]
+            suma=grado[idelfin]*grado[jdelfin]*C[ni,nj]
+            S2=S2+suma
+    S2=S2/(2*m)
+    mod=(S1-S2)/(2*m-S2)
+    modularidad_genero_comunidades.append(mod)
+
+#Output
+'''
+for c,comu in enumerate(comunidades):
+    output={}
+    output['histograma']=list(histogramas_comunidades[c])
+    output['comunidad']=colores[c]
+    output['enlaces_fm_hist']=Enlaces_fm_comunidades[c]
+    output['enlaces_fm_mean']=mean_enlacesfm_comunidades[c]
+    output['enlaces_fm_desv']=desv_enlacesfm_comunidades[c]
+    output['pvalor']=pvalue_comunidades[c]
+    output['modularidad_genero']=modularidad_genero_comunidades[c]
+    df = pd.DataFrame.from_dict(output, orient="index")
+    df.to_csv(outfolder+'comunidad_'+colores[c]+'_homofilia.txt',sep='\t')
+'''
             
         
 
